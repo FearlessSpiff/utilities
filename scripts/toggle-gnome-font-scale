@@ -13,7 +13,7 @@ fi
 
 # (Optional) Message intentions to CLI and GNOME Notifications
 echo -e "Previous Font Scale: $SCALE, Switched to $SCALE_SWITCH"
-notify-send "Previous Font Scale: $SCALE, Switched to $SCALE_SWITCH"
+# notify-send "Previous Font Scale: $SCALE, Switched to $SCALE_SWITCH"
 
 # Run switch command
 gsettings set org.gnome.desktop.interface text-scaling-factor $SCALE_SWITCH
