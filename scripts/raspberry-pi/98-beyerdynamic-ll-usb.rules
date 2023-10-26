@@ -1,0 +1,2 @@
+SUBSYSTEM=="usb",ATTR{idVendor}=="041e", ATTR{idProduct}=="324d", ACTION=="add", TAG+="systemd", ENV{SYSTEMD_WANTS}="loop-audio-input-to-output.service"
+SUBSYSTEM=="usb",ENV{PRODUCT}=="41e/324d/106", ACTION=="remove", RUN+="/bin/systemctl --no-block stop loop-audio-input-to-output.service"

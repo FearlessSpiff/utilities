@@ -1,0 +1,15 @@
+[Unit]
+Description=loop soundblaster spdif to beyerdynamic LL dongle
+After=syslog.target network.target
+
+[Service]
+SuccessExitStatus=143
+
+Type=simple
+
+WorkingDirectory=/home/steph
+ExecStart=alsaloop -r 48000 -C hw:1,0 -P plughw:1,0 -l 256
+ExecStop=/bin/kill -15 $MAINPID
+
+[Install]
+WantedBy=multi-user.target
