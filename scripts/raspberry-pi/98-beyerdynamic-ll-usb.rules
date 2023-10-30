@@ -1,2 +1,5 @@
-SUBSYSTEM=="usb",ATTR{idVendor}=="041e", ATTR{idProduct}=="324d", ACTION=="add", TAG+="systemd", ENV{SYSTEMD_WANTS}="loop-audio-input-to-output.service"
-SUBSYSTEM=="usb",ENV{PRODUCT}=="41e/324d/106", ACTION=="remove", RUN+="/bin/systemctl --no-block stop loop-audio-input-to-output.service"
+# this is not needed anymore as a more elegant and user friendly solution can be found in 'loop-audio-input-to-output.service'
+
+SUBSYSTEM=="usb",ATTR{idVendor}=="2e50", ATTR{idProduct}=="002f", ACTION=="add", TAG+="systemd", ENV{SYSTEMD_USER_WANTS}="loop-audio-input-to-output.servi>
+# hack to stop the service as there seams no official way to do it and running systemctl as another user didn't work here
+SUBSYSTEM=="usb",ENV{PRODUCT}=="2e50/2f/0", ACTION=="remove", RUN+="/usr/bin/killall alsaloop"

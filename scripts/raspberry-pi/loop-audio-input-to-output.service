@@ -1,15 +1,22 @@
+#************ How-To *************
+# Find alsa devices by 'aplay -L'
+# Change alsaloop command accordingly
+# Find virtual device for unit file by 'systemctl --all --full -t device | grep beyer'
+# Change it accordingly in 'BindsTo' and 'WantedBy'
+# copy file to '~/.config/systemd/user/loop-audio-input-to-output.service'
+# enable it with 'systemctl --user enable loop-audio-input-to-output.service'
+
 [Unit]
 Description=loop soundblaster spdif to beyerdynamic LL dongle
 After=syslog.target network.target
+BindsTo=dev-snd-by\x2did-usb\x2dbeyerdynamic_GmbH___Co._KG_beyerdynamic_LL_Adapter_1000072011612\x2d01.device
 
 [Service]
-SuccessExitStatus=143
-
 Type=simple
 
-WorkingDirectory=/home/steph
-ExecStart=alsaloop -r 48000 -C hw:1,0 -P plughw:1,0 -l 256
+ExecStartPre=/bin/sleep 3
+ExecStart=alsaloop -C hw:CARD=G3,DEV=0 -P plughw:CARD=Adapter,DEV=0 -S 0 -l 256 -r 48000
 ExecStop=/bin/kill -15 $MAINPID
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=dev-snd-by\x2did-usb\x2dbeyerdynamic_GmbH___Co._KG_beyerdynamic_LL_Adapter_1000072011612\x2d01.device
