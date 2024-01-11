@@ -2,7 +2,7 @@
 Version=1.0
 Name=Toggle Font
 Comment=Toggle the font scale
-Exec=bash -c '/usr/bin/toggle-gnome-font-scale'
+Exec=bash -c '/home/steph/Development/github/FearlessSpiff/utilities/scripts/desktop/font-toggle/toggle-gnome-font-scale'
 Icon=utilities-terminal
 Terminal=true 
 Type=Application
