@@ -1,6 +1,6 @@
 [Desktop Entry]
 Version=1.0
-Name=Download Ricoh Images
+Name=GRIIIx Download
 Comment=Downloads camera images for waydroid
 Exec=bash -c '/home/steph/.local/share/waydroid/data/media/0/DCIM/GRIIIx/download-camera-images.sh'
 Icon=utilities-terminal
