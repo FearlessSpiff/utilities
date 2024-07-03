@@ -7,6 +7,8 @@
 # copy file to '~/.config/systemd/user/loop-audio-input-to-output.service'
 # enable it with 'systemctl --user enable loop-audio-input-to-output.service'
 # make it usable when not logged in: 'sudo loginctl enable-linger USER'
+# select output adapter (Beverdynamic LL) in alsamixer and up volume
+# store settings with 'sudo alsactl store'
 
 [Unit]
 Description=loop soundblaster spdif to beyerdynamic LL dongle
