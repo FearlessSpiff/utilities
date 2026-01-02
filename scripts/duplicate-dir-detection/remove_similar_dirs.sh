@@ -68,74 +68,77 @@ if [ "$KEEP_STRATEGY" = "newest" ] && ! command -v bc &> /dev/null; then
     exit 1
 fi
 
+# Check for agrep (required for fast similarity matching)
+if ! command -v agrep &> /dev/null; then
+    echo "Error: 'agrep' is required but is not installed"
+    echo "Install with: sudo pacman -S tre (Arch) or sudo apt install agrep (Debian/Ubuntu)"
+    exit 1
+fi
+
 # Validate similarity percentage is a number between 0 and 100
 if ! [[ "$SIMILARITY_THRESHOLD" =~ ^[0-9]+$ ]] || [ "$SIMILARITY_THRESHOLD" -lt 0 ] || [ "$SIMILARITY_THRESHOLD" -gt 100 ]; then
     echo "Error: Similarity percentage must be a number between 0 and 100"
     exit 1
 fi
 
-# Function to calculate Levenshtein distance between two strings
-levenshtein_distance() {
-    local s1="$1"
-    local s2="$2"
-    local len1=${#s1}
-    local len2=${#s2}
-    
-    # Create a 2D array
-    declare -A matrix
-    
-    # Initialize first row and column
-    for ((i=0; i<=len1; i++)); do
-        matrix[$i,0]=$i
-    done
-    for ((j=0; j<=len2; j++)); do
-        matrix[0,$j]=$j
-    done
-    
-    # Fill the matrix
-    for ((i=1; i<=len1; i++)); do
-        for ((j=1; j<=len2; j++)); do
-            if [ "${s1:i-1:1}" = "${s2:j-1:1}" ]; then
-                cost=0
-            else
-                cost=1
-            fi
-            
-            local deletion=$((matrix[$((i-1)),$j] + 1))
-            local insertion=$((matrix[$i,$((j-1))] + 1))
-            local substitution=$((matrix[$((i-1)),$((j-1))] + cost))
-            
-            # Find minimum
-            local min=$deletion
-            [ $insertion -lt $min ] && min=$insertion
-            [ $substitution -lt $min ] && min=$substitution
-            
-            matrix[$i,$j]=$min
-        done
-    done
-    
-    echo "${matrix[$len1,$len2]}"
-}
-
-# Function to calculate similarity percentage
+# Fast similarity check using agrep
+# Returns similarity percentage if strings are similar enough, 0 otherwise
+# Uses agrep for O(n) approximate matching instead of O(n*m) Levenshtein
 calculate_similarity() {
     local str1="$1"
     local str2="$2"
-    
+
     local len1=${#str1}
     local len2=${#str2}
     local max_len=$len1
-    [ $len2 -gt $max_len ] && max_len=$len2
-    
+    local min_len=$len2
+    if [ $len2 -gt $max_len ]; then
+        max_len=$len2
+        min_len=$len1
+    fi
+
     if [ $max_len -eq 0 ]; then
         echo "100"
         return
     fi
-    
-    local distance=$(levenshtein_distance "$str1" "$str2")
-    local similarity=$((100 - (distance * 100 / max_len)))
-    
-    echo "$similarity"
+
+    # Quick filter: if length difference exceeds max allowed errors, skip
+    # Formula: similarity = 100 - (distance * 100 / max_len)
+    # So: max_distance = (100 - threshold) * max_len / 100
+    local max_distance=$(( (100 - SIMILARITY_THRESHOLD) * max_len / 100 ))
+    local len_diff=$((max_len - min_len))
+
+    if [ $len_diff -gt $max_distance ]; then
+        echo "0"
+        return
+    fi
+
+    # Use agrep for fast approximate matching
+    # agrep -N allows N errors (insertions, deletions, substitutions)
+    # We check if str1 matches str2 within max_distance errors
+    # Using -x for whole-line match, -i for case insensitive could be added
+
+    # Try matching with agrep - need to escape special regex characters
+    local escaped_str2
+    escaped_str2=$(printf '%s' "$str2" | sed 's/[][\.*^$(){}|+?\\]/\\&/g')
+
+    if printf '%s\n' "$str1" | agrep -"$max_distance" -- "$escaped_str2" >/dev/null 2>&1; then
+        # Strings match within threshold - calculate approximate similarity
+        # We know distance <= max_distance, so similarity >= threshold
+        # For more accuracy, binary search for actual distance
+        local dist=0
+        while [ $dist -lt $max_distance ]; do
+            if printf '%s\n' "$str1" | agrep -"$dist" -- "$escaped_str2" >/dev/null 2>&1; then
+                break
+            fi
+            dist=$((dist + 1))
+        done
+        local similarity=$((100 - (dist * 100 / max_len)))
+        echo "$similarity"
+        return
+    fi
+
+    echo "0"
 }
 
 # Function to get directory modification time (newest file inside)
@@ -208,10 +211,21 @@ echo ""
 declare -A keep_dirs
 declare -A delete_dirs
 
+# Calculate total comparisons for progress display
+total_dirs=${#dirs[@]}
+total_comparisons=$((total_dirs * (total_dirs - 1) / 2))
+current_comparison=0
+
+echo "Starting pairwise comparison ($total_comparisons total comparisons)..."
+echo ""
+
 # Compare all directories pairwise
 for ((i=0; i<${#dirs[@]}; i++)); do
     dir1="${dirs[$i]}"
     basename1=$(basename "$dir1")
+
+    # Progress: show which directory we're processing
+    printf "\r\033[KProcessing [%d/%d]: %s" "$((i + 1))" "$total_dirs" "$basename1"
 
     # Skip if already marked for deletion
     if [ -n "${delete_dirs[$dir1]:-}" ]; then
@@ -221,6 +235,7 @@ for ((i=0; i<${#dirs[@]}; i++)); do
     for ((j=i+1; j<${#dirs[@]}; j++)); do
         dir2="${dirs[$j]}"
         basename2=$(basename "$dir2")
+        current_comparison=$((current_comparison + 1))
 
         # Skip if already marked for deletion
         if [ -n "${delete_dirs[$dir2]:-}" ]; then
@@ -240,6 +255,8 @@ for ((i=0; i<${#dirs[@]}; i++)); do
                 del_dir="$dir1"
             fi
 
+            # Clear progress line before printing match
+            printf "\r\033[K"
             echo "Found similar directories (${similarity}% similar):"
             echo "  KEEP:   $keep_dir"
             echo "  DELETE: $del_dir"
@@ -250,6 +267,11 @@ for ((i=0; i<${#dirs[@]}; i++)); do
         fi
     done
 done
+
+# Clear the progress line
+printf "\r\033[K"
+echo "Comparison complete."
+echo ""
 
 # Count directories to delete
 delete_count=0

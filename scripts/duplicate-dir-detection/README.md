@@ -25,7 +25,7 @@ This bash script scans a directory for subdirectories with similar names and rem
 
 ## Features
 - **Non-recursive scanning**: Only analyzes immediate subdirectories in the specified path (does not descend into nested folders)
-- Uses Levenshtein distance algorithm to calculate name similarity
+- Uses agrep for fast approximate string matching (Levenshtein distance)
 - **Flexible keep strategies**: Choose to keep directories by alphabetical order, newest modification time, or largest size
 - Dry-run mode for safe testing
 - Unattended operation (no manual prompts)
@@ -95,9 +95,10 @@ The script runs without prompts, making it perfect for automation and cron jobs.
 5. **Validation**: Checks that directory exists and percentage is valid
 
 ## How Similarity is Calculated
-The script uses the Levenshtein distance (edit distance) algorithm:
-- Measures the minimum number of single-character edits needed to change one string into another
+The script uses agrep (approximate grep) for fast Levenshtein distance calculation:
+- Measures the minimum number of single-character edits (insertions, deletions, substitutions) needed to change one string into another
 - Converts this to a percentage: `similarity = 100 - (distance * 100 / max_length)`
+- Uses a length pre-filter to skip obviously dissimilar names quickly
 
 ## Non-Recursive Behavior Example
 Given this directory structure:
@@ -125,13 +126,18 @@ It will **NOT** compare or touch:
 
 Only the immediate subdirectories of `/data` are analyzed.
 
+## Dependencies
+- **agrep** (required): Fast approximate string matching
+  - Arch Linux: `sudo pacman -S tre`
+  - Debian/Ubuntu: `sudo apt install agrep`
+- **bc** (optional): Only required for `--keep=newest` option
+
 ## Important Notes
 - **Non-recursive**: Only scans direct subdirectories in the given path - nested directories are ignored
 - By default, the script keeps the **first** directory (alphabetically) and deletes subsequent similar ones
 - Use `--keep=newest` or `--keep=largest` to change which directory is preserved
 - Directories are processed in sorted order
 - No manual confirmation required - runs unattended
-- The `--keep=newest` option requires `bc` to be installed
 - Use with caution - deleted directories cannot be recovered!
 - **Always test with --dry-run first!**
 
