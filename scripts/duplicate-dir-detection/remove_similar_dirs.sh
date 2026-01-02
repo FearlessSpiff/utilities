@@ -1,35 +1,70 @@
 #!/bin/bash
 
 # Script to find and remove similar duplicate directories based on name similarity
-# Usage: ./remove_similar_dirs.sh <directory_to_scan> <similarity_percentage> [--dry-run]
+# Usage: ./remove_similar_dirs.sh <directory_to_scan> <similarity_percentage> [options]
 
 set -euo pipefail
 
+show_usage() {
+    echo "Usage: $0 <directory_to_scan> <similarity_percentage> [options]"
+    echo ""
+    echo "Options:"
+    echo "  --dry-run           Preview changes without deleting anything"
+    echo "  --keep=<strategy>   Strategy for choosing which directory to keep:"
+    echo "                        first   - Keep first alphabetically (default)"
+    echo "                        newest  - Keep the most recently modified"
+    echo "                        largest - Keep the one with most disk usage"
+    echo ""
+    echo "Examples:"
+    echo "  $0 /path/to/scan 80"
+    echo "  $0 /path/to/scan 80 --dry-run"
+    echo "  $0 /path/to/scan 80 --keep=newest"
+    echo "  $0 /path/to/scan 80 --keep=largest --dry-run"
+}
+
 # Check if required arguments are provided
-if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
-    echo "Usage: $0 <directory_to_scan> <similarity_percentage> [--dry-run]"
-    echo "Example: $0 /path/to/scan 80"
-    echo "Example: $0 /path/to/scan 80 --dry-run"
+if [ "$#" -lt 2 ]; then
+    show_usage
     exit 1
 fi
 
 SCAN_DIR="$1"
 SIMILARITY_THRESHOLD="$2"
 DRY_RUN=false
+KEEP_STRATEGY="first"
 
-# Check for dry-run flag
-if [ "$#" -eq 3 ]; then
-    if [ "$3" = "--dry-run" ]; then
-        DRY_RUN=true
-    else
-        echo "Error: Unknown parameter '$3'. Use --dry-run for testing."
-        exit 1
-    fi
-fi
+# Parse optional arguments
+shift 2
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --dry-run)
+            DRY_RUN=true
+            ;;
+        --keep=*)
+            KEEP_STRATEGY="${1#--keep=}"
+            if [[ ! "$KEEP_STRATEGY" =~ ^(first|newest|largest)$ ]]; then
+                echo "Error: Invalid keep strategy '$KEEP_STRATEGY'. Use: first, newest, or largest"
+                exit 1
+            fi
+            ;;
+        *)
+            echo "Error: Unknown parameter '$1'"
+            show_usage
+            exit 1
+            ;;
+    esac
+    shift
+done
 
 # Validate directory exists
 if [ ! -d "$SCAN_DIR" ]; then
     echo "Error: Directory '$SCAN_DIR' does not exist"
+    exit 1
+fi
+
+# Check for bc if using newest strategy (needed for floating-point comparison)
+if [ "$KEEP_STRATEGY" = "newest" ] && ! command -v bc &> /dev/null; then
+    echo "Error: 'bc' is required for --keep=newest but is not installed"
     exit 1
 fi
 
@@ -103,6 +138,54 @@ calculate_similarity() {
     echo "$similarity"
 }
 
+# Function to get directory modification time (newest file inside)
+get_dir_mtime() {
+    local dir="$1"
+    # Get the most recent modification time of any file in the directory
+    find "$dir" -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1 || echo "0"
+}
+
+# Function to get directory size in bytes
+get_dir_size() {
+    local dir="$1"
+    du -sb "$dir" 2>/dev/null | cut -f1 || echo "0"
+}
+
+# Function to decide which directory to keep based on strategy
+# Returns 0 if dir1 should be kept, 1 if dir2 should be kept
+should_keep_first() {
+    local dir1="$1"
+    local dir2="$2"
+
+    case "$KEEP_STRATEGY" in
+        first)
+            # Already sorted alphabetically, dir1 comes first
+            return 0
+            ;;
+        newest)
+            local mtime1 mtime2
+            mtime1=$(get_dir_mtime "$dir1")
+            mtime2=$(get_dir_mtime "$dir2")
+            if (( $(echo "$mtime2 > $mtime1" | bc -l) )); then
+                return 1
+            else
+                return 0
+            fi
+            ;;
+        largest)
+            local size1 size2
+            size1=$(get_dir_size "$dir1")
+            size2=$(get_dir_size "$dir2")
+            if [ "$size2" -gt "$size1" ]; then
+                return 1
+            else
+                return 0
+            fi
+            ;;
+    esac
+    return 0
+}
+
 # Get all directories (non-recursively) in the scan directory
 mapfile -t dirs < <(find "$SCAN_DIR" -maxdepth 1 -type d ! -path "$SCAN_DIR" | sort)
 
@@ -113,6 +196,7 @@ fi
 
 echo "Found ${#dirs[@]} directories to analyze"
 echo "Similarity threshold: ${SIMILARITY_THRESHOLD}%"
+echo "Keep strategy: $KEEP_STRATEGY"
 if [ "$DRY_RUN" = true ]; then
     echo "Mode: DRY RUN (no directories will be deleted)"
 else
@@ -128,35 +212,41 @@ declare -A delete_dirs
 for ((i=0; i<${#dirs[@]}; i++)); do
     dir1="${dirs[$i]}"
     basename1=$(basename "$dir1")
-    
+
     # Skip if already marked for deletion
     if [ -n "${delete_dirs[$dir1]:-}" ]; then
         continue
     fi
-    
-    # Mark this directory as one to keep (unless we find it's similar to an earlier one)
-    if [ -z "${keep_dirs[$dir1]:-}" ] && [ -z "${delete_dirs[$dir1]:-}" ]; then
-        keep_dirs[$dir1]=1
-    fi
-    
+
     for ((j=i+1; j<${#dirs[@]}; j++)); do
         dir2="${dirs[$j]}"
         basename2=$(basename "$dir2")
-        
+
         # Skip if already marked for deletion
         if [ -n "${delete_dirs[$dir2]:-}" ]; then
             continue
         fi
-        
+
         # Calculate similarity
         similarity=$(calculate_similarity "$basename1" "$basename2")
-        
+
         if [ "$similarity" -ge "$SIMILARITY_THRESHOLD" ]; then
+            # Determine which directory to keep based on strategy
+            if should_keep_first "$dir1" "$dir2"; then
+                keep_dir="$dir1"
+                del_dir="$dir2"
+            else
+                keep_dir="$dir2"
+                del_dir="$dir1"
+            fi
+
             echo "Found similar directories (${similarity}% similar):"
-            echo "  KEEP:   $dir1"
-            echo "  DELETE: $dir2"
+            echo "  KEEP:   $keep_dir"
+            echo "  DELETE: $del_dir"
             echo ""
-            delete_dirs[$dir2]=1
+
+            delete_dirs[$del_dir]=1
+            keep_dirs[$keep_dir]=1
         fi
     done
 done

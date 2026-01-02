@@ -5,7 +5,7 @@ This bash script scans a directory for subdirectories with similar names and rem
 
 ## Usage
 ```bash
-./remove_similar_dirs.sh <directory_to_scan> <similarity_percentage> [--dry-run]
+./remove_similar_dirs.sh <directory_to_scan> <similarity_percentage> [options]
 ```
 
 ### Parameters
@@ -15,12 +15,18 @@ This bash script scans a directory for subdirectories with similar names and rem
    - 80-90 = very similar names
    - 70-79 = moderately similar names
    - Below 70 = less similar
-3. **--dry-run** (optional): Test mode - shows what would be deleted without actually deleting anything
+
+### Options
+- **--dry-run**: Test mode - shows what would be deleted without actually deleting anything
+- **--keep=\<strategy\>**: Strategy for choosing which directory to keep when duplicates are found:
+  - `first` - Keep first alphabetically (default)
+  - `newest` - Keep the directory with the most recently modified file
+  - `largest` - Keep the directory with the largest disk usage
 
 ## Features
 - **Non-recursive scanning**: Only analyzes immediate subdirectories in the specified path (does not descend into nested folders)
 - Uses Levenshtein distance algorithm to calculate name similarity
-- Keeps the first directory found and deletes similar ones
+- **Flexible keep strategies**: Choose to keep directories by alphabetical order, newest modification time, or largest size
 - Dry-run mode for safe testing
 - Unattended operation (no manual prompts)
 - Provides clear output showing which directories will be kept/deleted
@@ -56,7 +62,21 @@ The script will identify:
 
 This will catch more variations but may also flag directories that are less similar.
 
-### Example 4: Running unattended in scripts
+### Example 4: Keep the newest directory
+```bash
+./remove_similar_dirs.sh /path/to/projects 80 --keep=newest --dry-run
+```
+
+When duplicates are found, keeps the directory containing the most recently modified file. Useful when you want to preserve the most up-to-date version.
+
+### Example 5: Keep the largest directory
+```bash
+./remove_similar_dirs.sh /path/to/backups 80 --keep=largest --dry-run
+```
+
+When duplicates are found, keeps the directory with the largest total disk usage. Useful for keeping the most complete backup.
+
+### Example 6: Running unattended in scripts
 ```bash
 # Test first
 ./remove_similar_dirs.sh /data/backups 85 --dry-run
@@ -107,9 +127,11 @@ Only the immediate subdirectories of `/data` are analyzed.
 
 ## Important Notes
 - **Non-recursive**: Only scans direct subdirectories in the given path - nested directories are ignored
-- The script keeps the **first** directory encountered and deletes subsequent similar ones
+- By default, the script keeps the **first** directory (alphabetically) and deletes subsequent similar ones
+- Use `--keep=newest` or `--keep=largest` to change which directory is preserved
 - Directories are processed in sorted order
 - No manual confirmation required - runs unattended
+- The `--keep=newest` option requires `bc` to be installed
 - Use with caution - deleted directories cannot be recovered!
 - **Always test with --dry-run first!**
 
@@ -117,4 +139,5 @@ Only the immediate subdirectories of `/data` are analyzed.
 1. **Test first**: Run with `--dry-run` to see what would be deleted
 2. **Review output**: Check if the matches make sense
 3. **Adjust threshold**: If needed, try different similarity percentages
-4. **Execute**: Run without `--dry-run` to perform actual deletion
+4. **Choose keep strategy**: Decide whether to keep by alphabetical order (`first`), newest, or largest
+5. **Execute**: Run without `--dry-run` to perform actual deletion
