@@ -93,6 +93,9 @@ while IFS= read -r -d '' subdir; do
             # Move and rename the file
             mv "$file" "$new_filepath"
 
+            # Set file timestamp to match the directory's timestamp
+            touch -r "$subdir" "$new_filepath"
+
             # Remove the now-empty directory
             rmdir "$subdir"
 
