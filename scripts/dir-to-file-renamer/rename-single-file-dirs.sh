@@ -79,7 +79,7 @@ while IFS= read -r -d '' subdir; do
             echo -e "${RED}⊘ SKIP: $dir_name/${NC}"
             echo -e "  File '$new_filename' already exists in target directory"
             echo ""
-            ((SKIPPED++))
+            ((SKIPPED++)) || true
             continue
         fi
 
@@ -100,7 +100,7 @@ while IFS= read -r -d '' subdir; do
         fi
 
         echo ""
-        ((PROCESSED++))
+        ((PROCESSED++)) || true
     else
         # Skip directories with 0 or multiple files
         dir_name=$(basename "$subdir")
@@ -110,7 +110,7 @@ while IFS= read -r -d '' subdir; do
             echo -e "${YELLOW}⊘ SKIP: $dir_name/ ($file_count files)${NC}"
         fi
         echo ""
-        ((SKIPPED++))
+        ((SKIPPED++)) || true
     fi
 done < <(find "$TARGET_DIR" -mindepth 1 -maxdepth 1 -type d -print0)
 
