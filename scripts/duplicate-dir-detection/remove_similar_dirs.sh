@@ -122,13 +122,13 @@ calculate_similarity() {
     local escaped_str2
     escaped_str2=$(printf '%s' "$str2" | sed 's/[][\.*^$(){}|+?\\]/\\&/g')
 
-    if printf '%s\n' "$str1" | agrep -"$max_distance" -- "$escaped_str2" >/dev/null 2>&1; then
+    if printf '%s\n' "$str1" | agrep -x -"$max_distance" -- "$escaped_str2" >/dev/null 2>&1; then
         # Strings match within threshold - calculate approximate similarity
         # We know distance <= max_distance, so similarity >= threshold
         # For more accuracy, binary search for actual distance
         local dist=0
         while [ $dist -lt $max_distance ]; do
-            if printf '%s\n' "$str1" | agrep -"$dist" -- "$escaped_str2" >/dev/null 2>&1; then
+            if printf '%s\n' "$str1" | agrep -x -"$dist" -- "$escaped_str2" >/dev/null 2>&1; then
                 break
             fi
             dist=$((dist + 1))
