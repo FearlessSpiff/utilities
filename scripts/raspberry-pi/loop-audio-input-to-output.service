@@ -1,5 +1,6 @@
 #************ How-To *************
-# Switch PCM Capture Source in 'alsamixer' to 'IEC958 In'
+# Switch PCM Capture Source in 'alsamixer' to 'IEC958 In' or 'SPDIF In'
+# Unmute everything (Adapter, Soundcard) wit Key 'M'
 # Find alsa devices by 'aplay -L'
 # Change alsaloop command accordingly
 # Find virtual device for unit file by 'systemctl --all --full -t device | grep beyer'
